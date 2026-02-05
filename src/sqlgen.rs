@@ -10,8 +10,8 @@ pub fn statement_to_sql(stmt: &Statement) -> Option<String> {
 						println!("{}", msg);
 						return None;
 					} else {
-						let campos = if fields.is_empty() { "*".to_string() } else { fields.iter().map(|f| format!("\"{}\"", f)).collect::<Vec<_>>().join(", ") };
-						let mut sql = format!("SELECT {} FROM \"{}\"", campos, table);
+						let fields_sql = if fields.is_empty() { "*".to_string() } else { fields.iter().map(|f| format!("\"{}\"", f)).collect::<Vec<_>>().join(", ") };
+						let mut sql = format!("SELECT {} FROM \"{}\"", fields_sql, table);
 						if let Some(expr) = where_clause {
 							if let Some(w) = expr_to_sql(expr) {
 								sql.push_str(&format!(" WHERE {}", w));
