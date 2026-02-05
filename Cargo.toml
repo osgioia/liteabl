@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 rusqlite = "0.32"
+ratatui = "0.26"
+crossterm = "0.27"

@@ -10,8 +10,8 @@ pub fn statement_to_sql(stmt: &Statement) -> Option<String> {
 						println!("{}", msg);
 						return None;
 					} else {
-						let campos = if fields.is_empty() { "*".to_string() } else { fields.join(", ") };
-						let mut sql = format!("SELECT {} FROM {}", campos, table);
+						let campos = if fields.is_empty() { "*".to_string() } else { fields.iter().map(|f| format!("\"{}\"", f)).collect::<Vec<_>>().join(", ") };
+						let mut sql = format!("SELECT {} FROM \"{}\"", campos, table);
 						if let Some(expr) = where_clause {
 							if let Some(w) = expr_to_sql(expr) {
 								sql.push_str(&format!(" WHERE {}", w));
@@ -21,7 +21,7 @@ pub fn statement_to_sql(stmt: &Statement) -> Option<String> {
 					}
 				}
 			}
-			let mut sql = format!("SELECT * FROM {}", table);
+			let mut sql = format!("SELECT * FROM \"{}\"", table);
 			if let Some(expr) = where_clause {
 				if let Some(w) = expr_to_sql(expr) {
 					sql.push_str(&format!(" WHERE {}", w));
@@ -30,7 +30,7 @@ pub fn statement_to_sql(stmt: &Statement) -> Option<String> {
 			Some(sql)
 		}
 		Statement::FindFirst { table, where_clause } => {
-			let mut sql = format!("SELECT * FROM {}", table);
+			let mut sql = format!("SELECT * FROM \"{}\"", table);
 			if let Some(expr) = where_clause {
 				if let Some(w) = expr_to_sql(expr) {
 					sql.push_str(&format!(" WHERE {}", w));
@@ -40,10 +40,10 @@ pub fn statement_to_sql(stmt: &Statement) -> Option<String> {
 			Some(sql)
 		}
 		Statement::Create { table } => {
-			Some(format!("CREATE TABLE IF NOT EXISTS {} ();", table))
+			Some(format!("INSERT INTO \"{}\" DEFAULT VALUES", table))
 		}
 		Statement::Delete { table } => {
-			Some(format!("DELETE FROM {}", table))
+			Some(format!("DELETE FROM \"{}\"", table))
 		}
 		Statement::Display { fields } => {
 			if fields.iter().all(|f| f.starts_with('"') && f.ends_with('"')) {
@@ -59,14 +59,26 @@ pub fn statement_to_sql(stmt: &Statement) -> Option<String> {
 
 pub fn expr_to_sql(expr: &Expr) -> Option<String> {
 	match expr {
-		Expr::Identifier(s) => Some(s.clone()),
+		Expr::Identifier(s) => Some(format!("\"{}\"", s)),
 		Expr::String(s) => Some(format!("'{}'", s)),
 		Expr::Number(n) => Some(n.to_string()),
+		Expr::Float(f) => Some(f.to_string()),
+		Expr::Group(expr) => {
+			let inner = expr_to_sql(expr)?;
+			Some(format!("({})", inner))
+		}
 		Expr::BinOp { left, op, right } => {
 			let l = expr_to_sql(left)?;
 			let r = expr_to_sql(right)?;
 			match op {
 				Op::Eq => Some(format!("{} = {}", l, r)),
+				Op::Neq => Some(format!("{} <> {}", l, r)),
+				Op::Lt => Some(format!("{} < {}", l, r)),
+				Op::Gt => Some(format!("{} > {}", l, r)),
+				Op::Le => Some(format!("{} <= {}", l, r)),
+				Op::Ge => Some(format!("{} >= {}", l, r)),
+				Op::And => Some(format!("{} AND {}", l, r)),
+				Op::Or => Some(format!("{} OR {}", l, r)),
 			}
 		}
 	}

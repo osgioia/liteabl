@@ -61,7 +61,7 @@ impl Parser {
 	}
 
 	fn parse_foreach(&mut self) -> Option<Statement> {
-		self.next(); // consume ForEach
+		self.next();
 		let table = if let Token::Identifier(name) = self.next() {
 			name.clone()
 		} else {
@@ -73,7 +73,7 @@ impl Parser {
 			where_clause = self.parse_expr();
 		}
 		if let Token::Colon = self.peek() {
-			self.next(); // consume :
+			self.next();
 		}
 		let mut body = Vec::new();
 		while !matches!(self.peek(), Token::Identifier(s) if s == "END") && !matches!(self.peek(), Token::Eof) {
@@ -99,7 +99,7 @@ impl Parser {
 	}
 
 	fn parse_findfirst(&mut self) -> Option<Statement> {
-		self.next(); // consume FindFirst
+		self.next();
 		let table = if let Token::Identifier(name) = self.next() {
 			name.clone()
 		} else {
@@ -111,9 +111,8 @@ impl Parser {
 			where_clause = self.parse_expr();
 		}
 		if let Token::Colon = self.peek() {
-			self.next(); // consume :
+			self.next();
 		}
-		// Para PoC, ignorar body en FindFirst
 		if let Token::Identifier(s) = self.peek() {
 			if s == "END" {
 				self.next();
@@ -129,7 +128,7 @@ impl Parser {
 	}
 
 	fn parse_create(&mut self) -> Option<Statement> {
-		self.next(); // consume Create
+		self.next();
 		let table = if let Token::Identifier(name) = self.next() {
 			name.clone()
 		} else {
@@ -142,7 +141,7 @@ impl Parser {
 	}
 
 	fn parse_delete(&mut self) -> Option<Statement> {
-		self.next(); // consume Delete
+		self.next();
 		let table = if let Token::Identifier(name) = self.next() {
 			name.clone()
 		} else {
@@ -155,7 +154,7 @@ impl Parser {
 	}
 
 	fn parse_display(&mut self) -> Option<Statement> {
-		self.next(); // consume Display
+		self.next();
 		let mut fields = Vec::new();
 		while let Token::Identifier(_name) = self.peek() {
 			if let Token::Identifier(name) = self.next() {
@@ -169,52 +168,72 @@ impl Parser {
 	}
 
 	fn parse_expr(&mut self) -> Option<Expr> {
-		// Soporta solo igualdad para PoC: campo = valor
-		let left = match self.peek() {
-			Token::Identifier(name) => {
-				let name = name.clone();
+		let mut left = self.parse_primary()?;
+		while let Some(op) = self.peek_op() {
+			self.next();
+			let right = self.parse_primary()?;
+			left = Expr::BinOp {
+				left: Box::new(left),
+				op,
+				right: Box::new(right),
+			};
+		}
+		Some(left)
+	}
+
+	fn parse_primary(&mut self) -> Option<Expr> {
+		match self.peek() {
+			Token::LParen => {
 				self.next();
-				Expr::Identifier(name)
+				let expr = self.parse_expr()?;
+				if let Token::RParen = self.peek() {
+					self.next();
+				}
+				Some(Expr::Group(Box::new(expr)))
+			}
+			Token::Identifier(name) => {
+				let mut full_name = name.clone();
+				self.next();
+				if let Token::Dot = self.peek() {
+					if let Some(Token::Identifier(field)) = self.tokens.get(self.pos + 1) {
+						full_name.push('.');
+						full_name.push_str(field);
+						self.next();
+						self.next();
+					}
+				}
+				Some(Expr::Identifier(full_name))
 			}
 			Token::StringLit(s) => {
 				let s = s.clone();
 				self.next();
-				Expr::String(s)
+				Some(Expr::String(s))
 			}
 			Token::Number(n) => {
 				let n = *n;
 				self.next();
-				Expr::Number(n)
+				Some(Expr::Number(n))
 			}
-			_ => return None,
-		};
-		if let Token::Equals = self.peek() {
-			self.next();
-			let right = match self.peek() {
-				Token::Identifier(name) => {
-					let name = name.clone();
-					self.next();
-					Expr::Identifier(name)
-				}
-				Token::StringLit(s) => {
-					let s = s.clone();
-					self.next();
-					Expr::String(s)
-				}
-				Token::Number(n) => {
-					let n = *n;
-					self.next();
-					Expr::Number(n)
-				}
-				_ => return None,
-			};
-			Some(Expr::BinOp {
-				left: Box::new(left),
-				op: Op::Eq,
-				right: Box::new(right),
-			})
-		} else {
-			Some(left)
+			Token::Float(f) => {
+				let f = *f;
+				self.next();
+				Some(Expr::Float(f))
+			}
+			_ => None,
+		}
+	}
+
+	fn peek_op(&self) -> Option<Op> {
+		match self.peek() {
+			Token::Equals => Some(Op::Eq),
+			Token::NotEquals => Some(Op::Neq),
+			Token::LessThan => Some(Op::Lt),
+			Token::GreaterThan => Some(Op::Gt),
+			Token::LessOrEqual => Some(Op::Le),
+			Token::GreaterOrEqual => Some(Op::Ge),
+			Token::And => Some(Op::And),
+			Token::Or => Some(Op::Or),
+			_ => None,
 		}
 	}
 }
