@@ -5,12 +5,14 @@ pub fn statement_to_sql(stmt: &Statement) -> Option<String> {
 		Statement::ForEach { table, where_clause, body } => {
 			for s in body {
 				if let Statement::Display { fields } = s {
-					if fields.iter().all(|f| f.starts_with('"') && f.ends_with('"')) {
+					let literals_only = !fields.is_empty() && fields.iter().all(|f| f.starts_with('"') && f.ends_with('"'));
+					if literals_only {
 						let msg = fields.iter().map(|f| f.trim_matches('"')).collect::<Vec<_>>().join(" ");
 						println!("{}", msg);
 						return None;
 					} else {
-						let fields_sql = if fields.is_empty() { "*".to_string() } else { fields.iter().map(|f| format!("\"{}\"", f)).collect::<Vec<_>>().join(", ") };
+						let to_select: Vec<String> = fields.iter().filter(|f| !f.starts_with('"') && f.parse::<f64>().is_err()).cloned().collect();
+						let fields_sql = if to_select.is_empty() { "*".to_string() } else { to_select.iter().map(|f| format!("\"{}\"", f)).collect::<Vec<_>>().join(", ") };
 						let mut sql = format!("SELECT {} FROM \"{}\"", fields_sql, table);
 						if let Some(expr) = where_clause {
 							if let Some(w) = expr_to_sql(expr) {

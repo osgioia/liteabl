@@ -156,9 +156,27 @@ impl Parser {
 	fn parse_display(&mut self) -> Option<Statement> {
 		self.next();
 		let mut fields = Vec::new();
-		while let Token::Identifier(_name) = self.peek() {
-			if let Token::Identifier(name) = self.next() {
-				fields.push(name.clone());
+		loop {
+			match self.peek() {
+				Token::Identifier(name) => {
+					let name = name.clone();
+					self.next();
+					fields.push(name);
+				}
+				Token::StringLit(s) => {
+					let s = format!("\"{}\"", s);
+					self.next();
+					fields.push(s);
+				}
+				Token::Number(n) => {
+					fields.push(n.to_string());
+					self.next();
+				}
+				Token::Float(f) => {
+					fields.push(f.to_string());
+					self.next();
+				}
+				_ => break,
 			}
 		}
 		if let Token::Dot = self.peek() {

@@ -23,8 +23,15 @@ impl Runtime {
         let rows = stmt.query_map([], |row| {
             let mut values = Vec::new();
             for i in 0..column_count {
-                let value: Result<String, _> = row.get(i);
-                values.push(value.unwrap_or_else(|_| "NULL".to_string()));
+                let val_ref = row.get_ref(i)?;
+                let s = match val_ref {
+                    rusqlite::types::ValueRef::Null => "NULL".to_string(),
+                    rusqlite::types::ValueRef::Integer(i) => i.to_string(),
+                    rusqlite::types::ValueRef::Real(f) => f.to_string(),
+                    rusqlite::types::ValueRef::Text(t) => String::from_utf8_lossy(t).into_owned(),
+                    rusqlite::types::ValueRef::Blob(b) => format!("BLOB({}b)", b.len()),
+                };
+                values.push(s);
             }
             Ok(values)
         })?;
